@@ -3,7 +3,7 @@ from discord.ext import commands
 import discord
 import traceback
 from EZPaginator import Paginator
-genius = lyricsgenius.Genius('gRWeP4k87nQeNc2bvwu5i5XT9xNedG7XsKRT5kKXkihnjlMfNtkSG-esXhzE_TvK')
+genius = lyricsgenius.Genius('')
 
 class Lyric(commands.Cog):
     def __init__(self, bot):
