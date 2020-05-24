@@ -1,21 +1,25 @@
 import math
 import re
-
+from discord.utils import get
 import discord
 import lavalink
+import asyncio
 from discord.ext import commands
 
 url_rx = re.compile('https?:\\/\\/(?:www\\.)?.+')
 
+bots = commands.Bot(command_prefix="+")
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.volumee = 50
 
         if not hasattr(bot, 'lavalink'):
             bot.lavalink = lavalink.Client(680769129254223872)
             bot.lavalink.add_node('127.0.0.1', 2333, 'youshallnotpass', 'ko', 'default-node')
             bot.add_listener(bot.lavalink.voice_update_handler, 'on_socket_response')
+            print(bot.lavalink)
 
         bot.lavalink.add_event_hook(self.track_hook)
 
@@ -43,13 +47,12 @@ class Music(commands.Cog):
         """ Connects to the given voicechannel ID. A channel_id of `None` means disconnect. """
         ws = self.bot._connection._get_websocket(guild_id)
         await ws.voice_state(str(guild_id), channel_id)
-
+        
     @commands.command(aliases=['p', 'ㅔ'])
-    async def play(self, ctx, *, query="이마트"):
+    @commands.cooldown(1, 3, commands.BucketType.user)
+    async def play(self, ctx, *, query="shilu"):
         """ 링크나 제목을 주면 검색해 재생함. """
         player = self.bot.lavalink.players.get(ctx.guild.id)
-
-        await player.set_volume(50)
 
         query = query.strip('<>')
 
@@ -72,15 +75,60 @@ class Music(commands.Cog):
             embed.title = '재생목록 추가됨:'
             embed.description = f'{results["playlistInfo"]["name"]} - {len(tracks)}'
         else:
-            track = results['tracks'][0]
-            embed.title = '플레이리스트에 추가됨:'
-            embed.description = f'[{track["info"]["title"]}]({track["info"]["uri"]})'
-            player.add(requester=ctx.author.id, track=track)
+            tracks = results['tracks']
+            if len(tracks) >= 5:
+                songs = ["1. " + tracks[0]['info']['title'], "2. " + tracks[1]['info']['title'], "3. " + tracks[2]['info']['title'], "4. " + tracks[3]['info']['title'], "5. " + tracks[4]['info']['title']]
+                infoo = "\n".join(songs)
+                embed.title = '곡 중에서 선택'
+                embed.description = infoo
+                msg = await ctx.send(embed=embed)
+                await asyncio.gather(
+                    msg.add_reaction("1️⃣"),
+                    msg.add_reaction("2️⃣"),
+                    msg.add_reaction("3️⃣"),
+                    msg.add_reaction("4️⃣"),
+                    msg.add_reaction("5️⃣"),
+                    msg.add_reaction("❌")
+                )
 
-        await ctx.send(embed=embed)
+                def check(reaction, user):
+                    return user == ctx.author
+
+                try:
+                    reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=15)
+                except asyncio.TimeoutError:
+                    timeout_embed = discord.Embed(title="시간이 초과됨", description="시간이 초과되었습니다. 명령어를 다시 입력해주세요!", colour=discord.Colour.red())
+                    await msg.edit(embed=timeout_embed)
+                else:
+                    react = str(reaction.emoji)
+                    if react == "1️⃣":
+                        index = 0
+                    elif react == "2️⃣":
+                        index = 1
+                    elif react == "3️⃣":
+                        index = 2
+                    elif react == "4️⃣":
+                        index = 3
+                    elif react == "5️⃣":
+                        index = 4
+                    elif react == "❌":
+                        canceled_embed = discord.Embed(title="요청이 취소됨", description="요청 취소 명령을 받았습니다!", colour=discord.Colour.light_grey())
+                        return await msg.edit(embed=canceled_embed)
+                    else:
+                        unknown_embed = discord.Embed(title="알 수 없는 이모지", description="나와있는 이모지만 선택해주세요!", colour=discord.Colour.red())
+                        return await msg.edit(embed=unknown_embed)
+                    track = tracks[index]
+                    good_embed = discord.Embed(colour=discord.Colour.blurple())
+                    good_embed.title = '플레이리스트에 추가되었습니다!'
+                    good_embed.description = f'[{track["info"]["title"]}]({track["info"]["uri"]})'
+                    good_embed.set_thumbnail(url=f"https://img.youtube.com/vi/{track['info']['identifier']}/0.jpg")
+                    player.add(requester=ctx.author.id, track=track)
+                    await msg.edit(embed=good_embed)
 
         if not player.is_playing:
             await player.play()
+
+        await player.set_volume(self.volumee)
 
     @commands.command(aliases=['m', 'move', 'ㅡ'])
     async def seek(self, ctx, *, seconds: int):
@@ -128,10 +176,12 @@ class Music(commands.Cog):
             duration = '🔴 | 라이브'
         else:
             duration = lavalink.utils.format_time(player.current.duration)
+
         song = f'**[{player.current.title}]({player.current.uri})**\n({position}/{duration})'
 
         embed = discord.Embed(color=discord.Color.blurple(),
-                              title='플레이 중:', description=song)
+                              title='플레이 중!', description=song)
+        embed.set_image(url=f"https://img.youtube.com/vi/{player.current.identifier}/0.jpg")
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['q', 'ㅂ'])
@@ -178,10 +228,11 @@ class Music(commands.Cog):
         player = self.bot.lavalink.players.get(ctx.guild.id)
 
         if not volume:
-            return await ctx.send(f'🔈 | {player.volume}%')
+            return await ctx.send(f'🔈 | {player.volume * 2}%')
 
+        self.volumee = volume / 2
         await player.set_volume(volume / 2)  # Lavalink will automatically cap values between, or equal to 0-1000.
-        await ctx.send(f'🔈 | 음량이 {player.volume}% 로 맞춰졌습니다.')
+        await ctx.send(f'🔈 | 음량이 {player.volume * 2}% 로 맞춰졌습니다.')
 
     @commands.command(aliases=['sh', '노'])
     async def shuffle(self, ctx):
@@ -251,14 +302,14 @@ class Music(commands.Cog):
 
             permissions = ctx.author.voice.channel.permissions_for(ctx.me)
 
-            if not permissions.connect or not permissions.speak:  # Check user limit too?
-                raise commands.CommandInvokeError(':x: | ~~힘이.... 힘이 모자라단 말이다..!!~~ 권한이 부족합니다.')
+            if not permissions.connect or not permissions.speak:
+                raise commands.CommandInvokeError(':x: | 권한이 부족하거나 사람이 너무 많네요 ;;')
 
             player.store('channel', ctx.channel.id)
             await self.connect_to(ctx.guild.id, str(ctx.author.voice.channel.id))
         else:
             if int(player.channel_id) != ctx.author.voice.channel.id:
-                raise commands.CommandInvokeError(':x: | 저 너무 외로워요.. 제 채널로 와주세요..')
+                raise commands.CommandInvokeError(':x: | 어.. 그니까 저는 다른 채널에 빼놓고 지들끼리만 파티하는 거죠..?')
 
 
 def setup(bot):
