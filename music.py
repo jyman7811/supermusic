@@ -16,7 +16,7 @@ class Music(commands.Cog):
         self.volumee = 50
 
         if not hasattr(bot, 'lavalink'):
-            bot.lavalink = lavalink.Client(680769129254223872)
+            bot.lavalink = lavalink.Client(1234567890123456) # please put here a your bot's ID
             bot.lavalink.add_node('127.0.0.1', 2333, 'youshallnotpass', 'ko', 'default-node')
             bot.add_listener(bot.lavalink.voice_update_handler, 'on_socket_response')
             print(bot.lavalink)
