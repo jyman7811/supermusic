@@ -6,7 +6,7 @@ import math
 bot = commands.AutoShardedBot(command_prefix="+")
 TOKEN = ''
 
-bot.load_extension("music") #load music.py file
+bot.load_extension("music")
 bot.load_extension("lyric")
 
 @bot.event
