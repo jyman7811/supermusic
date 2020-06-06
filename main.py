@@ -26,4 +26,4 @@ async def shard_id(ctx):
     embed.add_field(name="Shard Latency", value=str(math.floor(round(bot.latencies[ctx.author.guild.shard_id][1]*1000))) + "ms")
     await ctx.send(embed=embed)
 
-bot.run(TOKEN) #run bot
+bot.run(TOKEN)
